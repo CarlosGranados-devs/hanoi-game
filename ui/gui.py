@@ -1,0 +1,1 @@
+# Placeholder para la interfaz gráfica (v2)
