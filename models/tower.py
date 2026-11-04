@@ -1,19 +1,27 @@
 class Tower:
-    def __init__(self, name):
-        self.name = name
-        self.disks = []
+    def __init__(self):
+        self._disks = []
 
     def push(self, disk):
-        pass
+        if not self.is_empty() and disk > self.peek():
+            raise ValueError("No se puede colocar un disco más grande sobre uno más pequeño")
+        self._disks.append(disk)
 
     def pop(self):
-        pass
+        if self.is_empty():
+            raise IndexError("La torre está vacía")
+        return self._disks.pop()
 
     def peek(self):
-        pass
+        if self.is_empty():
+            raise IndexError("La torre está vacía")
+        return self._disks[-1]
 
     def is_empty(self):
-        pass
+        return len(self._disks) == 0
 
     def size(self):
-        pass
+        return len(self._disks)
+
+    def get_disks(self):
+        return self._disks.copy()
