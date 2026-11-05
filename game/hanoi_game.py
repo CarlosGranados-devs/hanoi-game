@@ -1,15 +1,84 @@
+from models.tower import Tower
+
+
 class HanoiGame:
+    NUM_TOWERS = 3
+    MIN_DISKS = 1
+    MAX_DISKS = 10
+
     def __init__(self, num_disks):
+        if not isinstance(num_disks, int) or isinstance(num_disks, bool):
+            raise ValueError("El número de discos debe ser un entero.")
+        if num_disks < self.MIN_DISKS or num_disks > self.MAX_DISKS:
+            raise ValueError(
+                f"El número de discos debe estar entre {self.MIN_DISKS} y {self.MAX_DISKS}."
+            )
         self.num_disks = num_disks
+        self.min_moves = 2 ** num_disks - 1
+        self.towers = []
         self.moves = 0
-        self.min_moves = 0
-        self.towers = {}
+        self.reset()
+
+    def reset(self):
+        self.towers = [Tower() for _ in range(self.NUM_TOWERS)]
+        for disk in range(self.num_disks, 0, -1):
+            self.towers[0].push(disk)
+        self.moves = 0
+
+    def _validate_index(self, index):
+        if not isinstance(index, int) or isinstance(index, bool):
+            raise ValueError("La torre debe indicarse con un número entero.")
+        if index < 0 or index >= self.NUM_TOWERS:
+            raise ValueError(
+                f"Torre inválida. Debe estar entre 1 y {self.NUM_TOWERS}."
+            )
+
+    def is_valid_move(self, from_tower, to_tower):
+        try:
+            self._validate_index(from_tower)
+            self._validate_index(to_tower)
+        except ValueError:
+            return False
+        if from_tower == to_tower:
+            return False
+        origin = self.towers[from_tower]
+        destination = self.towers[to_tower]
+        if origin.is_empty():
+            return False
+        if destination.is_empty():
+            return True
+        return origin.peek() < destination.peek()
 
     def move(self, from_tower, to_tower):
-        pass
+        self._validate_index(from_tower)
+        self._validate_index(to_tower)
+        if from_tower == to_tower:
+            raise ValueError("La torre origen y la torre destino deben ser distintas.")
+        origin = self.towers[from_tower]
+        destination = self.towers[to_tower]
+        if origin.is_empty():
+            raise ValueError("La torre origen está vacía.")
+        if not destination.is_empty() and origin.peek() > destination.peek():
+            raise ValueError("No se puede colocar un disco grande sobre uno más pequeño.")
+        disk = origin.pop()
+        destination.push(disk)
+        self.moves += 1
+        return disk
 
     def is_finished(self):
-        pass
+        return self.towers[2].size() == self.num_disks
+
+    def is_won(self):
+        return self.is_finished()
 
     def get_state(self):
-        pass
+        return [tower.get_disks() for tower in self.towers]
+
+    def get_towers(self):
+        return self.get_state()
+
+    def get_moves(self):
+        return self.moves
+
+    def get_min_moves(self):
+        return self.min_moves
