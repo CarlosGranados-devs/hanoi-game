@@ -26,6 +26,7 @@ class HanoiGUI:
     COLOR_POLE = (160, 110, 60)
     COLOR_TEXT = (255, 255, 255)
     COLOR_DISK_BORDER = (16, 10, 24)
+    COLOR_SELECTION = (255, 220, 60)
 
     # Un color por tamaño de disco (el juego admite hasta 10 discos)
     DISK_COLORS = [
@@ -58,8 +59,6 @@ class HanoiGUI:
     DISK_UNITS_MIN = 12       # ancho del disco más pequeño
     DISK_UNITS_MAX = 56       # ancho del disco más grande
 
-
-
     def __init__(self, num_disks=3):
         pygame.init()
         pygame.display.set_caption("Torre de Hanói")
@@ -70,32 +69,36 @@ class HanoiGUI:
         self.game = HanoiGame(num_disks)
         self.font = pygame.font.SysFont("consolas", 28)
 
-      # Imágenes estáticas (si falta alguna, se dibuja una versión simple)
+        # Imágenes estáticas (si falta alguna, se dibuja una versión simple)
         self.img_background = load_image("background.png")
         self.img_base = load_image("base.png")
         self.img_pole_wood = load_image("pole_wood.png")
         self.img_pole_steel = load_image("pole_steel.png")  # torre 3 (meta)
- 
+
         self._disk_cache = {}
 
+        # Interacción (Punto 2.3)
+        self.selected_tower = None
+        self.error_message = ""
+
     # ------------------------------------------------------------------
-    # Medidas del dibujo (también las usará el Punto 2.3 para los clics)
+    # Medidas del dibujo (también las usa el Punto 2.3 para los clics)
     # ------------------------------------------------------------------
     def tower_center_x(self, index):
         """Coordenada x del centro de la torre `index` (0, 1 o 2)."""
         section = self.WIDTH // self.NUM_TOWERS
         return section * index + section // 2
- 
+
     def tower_rect(self, index):
         """Rectángulo de la columna de la torre (útil para detectar clics)."""
         section = self.WIDTH // self.NUM_TOWERS
         top = self.BASE_Y - self.POLE_HEIGHT
         bottom = self.PLATFORM_Y + self.PLATFORM_TOP_H
         return pygame.Rect(section * index, top, section, bottom - top)
- 
+
     def disk_color(self, size):
         return self.DISK_COLORS[(size - 1) % len(self.DISK_COLORS)]
- 
+
     def disk_units(self, size):
         """Ancho del disco en pixeles de arte: proporcional a su tamaño (siempre par)."""
         biggest = self.game.num_disks
@@ -104,21 +107,21 @@ class HanoiGUI:
         step = (self.DISK_UNITS_MAX - self.DISK_UNITS_MIN) / (biggest - 1)
         units = self.DISK_UNITS_MIN + (size - 1) * step
         return int(round(units / 2) * 2)
- 
+
     def disk_surface(self, size):
         """Imagen pixel-art de un disco (se crea una vez y se reutiliza)."""
         key = (size, self.game.num_disks)
         if key not in self._disk_cache:
             self._disk_cache[key] = self._build_disk(size)
         return self._disk_cache[key]
- 
+
     def _build_disk(self, size):
         units = self.disk_units(size)
         h = self.DISK_UNITS_H
         base = self.disk_color(size)
         light = tuple(min(255, c + 55) for c in base)
         dark = tuple(int(c * 0.62) for c in base)
- 
+
         small = pygame.Surface((units, h), pygame.SRCALPHA)
         for y in range(h):
             for x in range(units):
@@ -138,8 +141,9 @@ class HanoiGUI:
         return pygame.transform.scale(
             small, (units * self.PIXEL, h * self.PIXEL))
 
-
-    
+    # ------------------------------------------------------------------
+    # Interacción (Punto 2.3): selección de torre origen y destino con clic
+    # ------------------------------------------------------------------
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -147,6 +151,40 @@ class HanoiGUI:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                self.handle_click(event.pos)
+
+    def tower_at(self, pos):
+        """Devuelve el índice de la torre bajo la posición `pos`, o None."""
+        for index in range(self.NUM_TOWERS):
+            if self.tower_rect(index).collidepoint(pos):
+                return index
+        return None
+
+    def handle_click(self, pos):
+        if self.game.is_finished():
+            return
+        clicked = self.tower_at(pos)
+        if clicked is None:
+            self.selected_tower = None
+            return
+        self.error_message = ""
+        if self.selected_tower is None:
+            if not self.game.get_state()[clicked]:
+                self.error_message = "La torre origen está vacía."
+                print(self.error_message)
+                return
+            self.selected_tower = clicked
+            return
+        origin = self.selected_tower
+        self.selected_tower = None
+        if clicked == origin:
+            return
+        try:
+            self.game.move(origin, clicked)
+        except ValueError as error:
+            self.error_message = str(error)
+            print(self.error_message)
 
     def update(self):
         pass
@@ -159,7 +197,7 @@ class HanoiGUI:
             self.screen.blit(self.img_background, (0, 0))
         else:
             self.screen.fill(self.COLOR_BG)
- 
+
     def draw_base(self):
         """Base de madera sobre la que están las 3 torres."""
         if self.img_base:
@@ -169,7 +207,7 @@ class HanoiGUI:
             x = self.tower_center_x(i) - 140
             pygame.draw.rect(self.screen, self.COLOR_BASE,
                              pygame.Rect(x, self.BASE_Y, 280, 24))
- 
+
     def draw_poles(self):
         """Los 3 palos; el de la torre 3 (meta) es de metal."""
         for i in range(self.NUM_TOWERS):
@@ -183,10 +221,10 @@ class HanoiGUI:
                 pole = pygame.Rect(x, self.BASE_Y - self.POLE_HEIGHT,
                                    self.POLE_WIDTH, self.POLE_HEIGHT)
                 pygame.draw.rect(self.screen, self.COLOR_POLE, pole)
- 
+
     def draw_disks(self):
         """Dibuja los discos según el estado actual de HanoiGame.
- 
+
         get_state() devuelve 3 listas, de la base a la cima. Cada disco se
         solapa 1 pixel de arte con el de abajo para compartir el borde negro.
         """
@@ -199,14 +237,22 @@ class HanoiGUI:
                 x = center_x - surface.get_width() // 2
                 y = self.BASE_Y - disk_h - level * step
                 self.screen.blit(surface, (x, y))
- 
+
+    def draw_selection(self):
+        """Borde amarillo alrededor de la torre origen seleccionada."""
+        if self.selected_tower is None:
+            return
+        rect = self.tower_rect(self.selected_tower)
+        pygame.draw.rect(self.screen, self.COLOR_SELECTION, rect, 4)
+
     def draw(self):
         self.draw_background()
         self.draw_base()
         self.draw_poles()
         self.draw_disks()
+        self.draw_selection()
         pygame.display.flip()
- 
+
     def run(self):
         while self.running:
             self.handle_events()
