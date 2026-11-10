@@ -157,10 +157,7 @@ class HanoiGUI:
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self.running = False
-                elif self.state == "menu":
-                    self.handle_menu_key(event.key)
+                self.handle_key(event.key)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 self.handle_mouse(event.pos)
 
@@ -239,6 +236,18 @@ class HanoiGUI:
         value = self.menu_disks + delta
         self.menu_disks = max(HanoiGame.MIN_DISKS, min(HanoiGame.MAX_DISKS, value))
 
+    def handle_key(self, key):
+        """Teclado global: ESC (menú/salir) y R (reintentar)."""
+        if self.state == "menu":
+            if key == pygame.K_ESCAPE:
+                self.running = False
+            else:
+                self.handle_menu_key(key)
+        elif key == pygame.K_ESCAPE:
+            self.go_to_menu()
+        elif key == pygame.K_r:
+            self.start_game(self.game.num_disks)
+
     def handle_menu_key(self, key):
         if key in (pygame.K_UP, pygame.K_RIGHT):
             self.change_menu_disks(1)
@@ -300,6 +309,8 @@ class HanoiGUI:
                        self.COLOR_TEXT, topleft=(24, 20))
         self.draw_text(f"DISCOS: {self.game.num_disks}", self.font_small,
                        self.COLOR_TEXT, topleft=(24, 62))
+        self.draw_text("Esc: menú | R: reintentar", self.font_small,
+                       self.COLOR_TEXT, center=(self.WIDTH - 170, 34))
 
     def draw_error(self):
         """Mensaje de error en rojo, centrado arriba; desaparece solo."""
@@ -356,7 +367,7 @@ class HanoiGUI:
         self.draw_text(str(self.menu_disks), self.font_big, self.COLOR_TEXT,
                        center=(cx, 332))
         self.draw_button(self.BTN_START, "START")
-        self.draw_text("Flechas: cambiar  |  Enter: empezar",
+        self.draw_text("Flechas: cambiar | Enter: empezar | Esc: salir",
                        self.font_small, self.COLOR_TEXT, center=(cx, 488))
 
     # ------------------------------------------------------------------
@@ -431,12 +442,14 @@ class HanoiGUI:
         pygame.display.flip()
 
     def run(self):
-        while self.running:
-            self.handle_events()
-            self.update()
-            self.draw()
-            self.clock.tick(self.FPS)
-        pygame.quit()
+        try:
+            while self.running:
+                self.handle_events()
+                self.update()
+                self.draw()
+                self.clock.tick(self.FPS)
+        finally:
+            pygame.quit()  # cierre limpio al cerrar la ventana o ante un error
 
 
 def main():
