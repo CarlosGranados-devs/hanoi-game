@@ -1,13 +1,14 @@
 # Documentación Técnica
 
-Resumen de las estructuras y funciones principales del MVP (v1, consola).
+Resumen de las estructuras y funciones principales del proyecto (v1 consola y v2 GUI).
 
 ## Arquitectura
 
 Tres capas con responsabilidades separadas:
 
 ```
-main.py ──► ui/console_ui.py   (mostrar y leer)
+main.py ──► ui/console_ui.py   (mostrar y leer, modo --console)
+   ├────► ui/gui.py           (GUI Pygame, modo por defecto)
    │   └──► utils/helpers.py   (validar entradas)
    └──────► game/hanoi_game.py (reglas y estado) ──► models/tower.py (pila)
 ```
@@ -17,7 +18,7 @@ main.py ──► ui/console_ui.py   (mostrar y leer)
 - **ui**: solo muestra información y lee la entrada; no conoce las reglas.
 - **main / utils**: integran todo y validan formato de entradas.
 
-Esta separación permite reemplazar la consola por una GUI (v2) sin tocar `game` ni `models`.
+Esta separación permitió añadir la GUI (v2) sin tocar `game` ni `models`.
 
 ## models/tower.py — `Tower`
 
@@ -75,8 +76,12 @@ Convención: el usuario ve torres 1-3; el resto del código usa índices 0-2.
 
 ## main.py
 
-- `play(game)`: bucle de una partida. Muestra el tablero y los contadores, pide el movimiento y captura el `ValueError` de `game.move()` para mostrarlo con `show_error`. Devuelve `True` si se ganó, `False` si el usuario salió.
-- `main()`: pide el número de discos, juega y pregunta si se quiere repetir.
+- `play(game)`: bucle de una partida en consola. Muestra el tablero y los contadores, pide el movimiento y captura el `ValueError` de `game.move()` para mostrarlo con `show_error`. Devuelve `True` si se ganó, `False` si el usuario salió.
+- `run_console()`: flujo de consola (v1): pide el número de discos, juega y pregunta si se quiere repetir.
+- `run_gui()`: abre `HanoiGUI()` (arranca en el menú). El import de `ui.gui` es diferido: si falta `pygame`, imprime cómo instalarlo y devuelve 1; la consola no se ve afectada.
+- `main(argv=None)`: lee `--console`; sin la opción lanza la GUI. Su valor de retorno es el código de salida.
+
+Ejecución: `python main.py` (GUI) o `python main.py --console`.
 
 ## Flujo de un turno
 
@@ -97,3 +102,49 @@ Convención: el usuario ve torres 1-3; el resto del código usa índices 0-2.
 - [x] Entrada de origen y destino
 - [x] Flujo principal con validación del número de discos
 - [x] Lógica de juego independiente de la interfaz
+
+## ui/gui.py — `HanoiGUI` (v2)
+
+GUI con Pygame (`pygame-ce`). Solo dibuja y lee eventos; las reglas siguen en `HanoiGame`.
+
+`HanoiGUI(num_disks=3, show_menu=True)` crea la ventana (960x640). `run()` ejecuta el bucle (eventos → `update` → `draw`) y siempre llama a `pygame.quit()` al terminar, incluso si hay un error.
+
+**Estados** (`self.state`):
+
+| Estado | Qué muestra |
+|--------|-------------|
+| `"menu"` | Selector de discos (1-10) y botón START. |
+| `"playing"` | Torres, discos, HUD, errores y, al ganar, el panel de victoria. |
+
+**Eventos**
+
+| Entrada | Menú | Partida |
+|---------|------|---------|
+| `Esc` | Cierra la app | Vuelve al menú |
+| `R` | — | Reinicia con los mismos discos |
+| Flechas / `Enter` | Cambian discos / empieza | — |
+| `QUIT` (cerrar ventana) | Cierra la app | Cierra la app |
+| Clic izquierdo | Botones -, +, START | Seleccionar torre origen y destino |
+
+**Métodos principales**
+
+| Grupo | Métodos |
+|-------|---------|
+| Eventos | `handle_events`, `handle_key`, `handle_menu_key`, `handle_mouse`, `handle_click`, `tower_at` |
+| Estado | `start_game(n)`, `go_to_menu()`, `change_menu_disks(delta)`, `set_error(msg)` |
+| Dibujo | `draw`, `draw_background`, `draw_base`, `draw_poles`, `draw_disks`, `draw_selection`, `draw_hud`, `draw_error`, `draw_victory`, `draw_menu`, `draw_text`, `draw_button` |
+| Medidas | `tower_center_x`, `tower_rect`, `disk_units`, `disk_surface` |
+
+**Flujo de un movimiento**: primer clic en una torre con discos → `selected_tower`; segundo clic en otra torre → `game.move(origen, destino)`. Si lanza `ValueError`, se muestra con `set_error` (3 s). Si `game.is_finished()`, se dibuja el panel de victoria y los clics sobre las torres dejan de hacer algo.
+
+Los recursos están en `assets/` (`background.png`, `base.png`, `pole_wood.png`, `pole_steel.png`). Si falta alguno, se dibuja una versión simple.
+
+## Criterios de aceptación de v2
+
+- [x] Ventana y bucle principal con Pygame
+- [x] Torres y discos con tamaños y colores diferenciados
+- [x] Selección de origen y destino con clic, con feedback visual
+- [x] HUD: movimientos, mínimo, errores y victoria
+- [x] Selector de número de discos
+- [x] `main.py` lanza la GUI; `--console` conserva el modo v1
+- [x] Cierre de ventana y `Esc` / `R` funcionan
