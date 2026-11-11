@@ -2,25 +2,23 @@ import os
 import pygame
 from game.hanoi_game import HanoiGame
 
-# Carpeta assets/ en la raíz del proyecto (funciona sin importar desde dónde se ejecute)
 ASSETS_DIR = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets"))
 
 
 def load_image(name):
-    """Carga una imagen de assets/. Devuelve None si no existe (se usa un dibujo simple)."""
     path = os.path.join(ASSETS_DIR, name)
     try:
         return pygame.image.load(path).convert_alpha()
     except (pygame.error, FileNotFoundError):
         return None
 
+
 class HanoiGUI:
     WIDTH = 960
     HEIGHT = 640
     FPS = 60
 
-    # Colores tomados de la imagen de referencia (estilo pixel)
     COLOR_BG = (45, 25, 95)
     COLOR_BASE = (139, 90, 43)
     COLOR_POLE = (160, 110, 60)
@@ -28,36 +26,55 @@ class HanoiGUI:
     COLOR_DISK_BORDER = (16, 10, 24)
     COLOR_SELECTION = (255, 220, 60)
 
-    # Un color por tamaño de disco (el juego admite hasta 10 discos)
     DISK_COLORS = [
-        (231, 76, 60),    # 1 rojo
-        (230, 126, 34),   # 2 naranja
-        (241, 196, 15),   # 3 amarillo
-        (46, 204, 113),   # 4 verde
-        (26, 188, 156),   # 5 turquesa
-        (52, 152, 219),   # 6 azul
-        (155, 89, 182),   # 7 morado
-        (233, 30, 99),    # 8 rosa
-        (121, 85, 72),    # 9 café
-        (149, 165, 166),  # 10 gris
+        (231, 76, 60),
+        (230, 126, 34),
+        (241, 196, 15),
+        (46, 204, 113),
+        (26, 188, 156),
+        (52, 152, 219),
+        (155, 89, 182),
+        (233, 30, 99),
+        (121, 85, 72),
+        (149, 165, 166),
     ]
 
-    # --- Estilo pixel: cada "pixel" del arte ocupa PIXEL x PIXEL pixeles reales ---
     PIXEL = 4
 
-    # --- Distribución de la escena ---
     NUM_TOWERS = 3
-    PLATFORM_X = 30           # esquina de la base de madera (imagen base.png, 900x152)
+    PLATFORM_X = 30
     PLATFORM_Y = 468
-    PLATFORM_TOP_H = 40       # alto de la superficie donde apoyan los discos
-    BASE_Y = 492              # y donde apoyan los discos y los palos
-    POLE_HEIGHT = 300         # alto del palo (pole_*.png, 24x300)
+    PLATFORM_TOP_H = 40
+    BASE_Y = 492
+    POLE_HEIGHT = 300
     POLE_WIDTH = 24
 
-    # --- Discos (medidas en "pixeles de arte") ---
-    DISK_UNITS_H = 7          # alto de cada disco
-    DISK_UNITS_MIN = 12       # ancho del disco más pequeño
-    DISK_UNITS_MAX = 56       # ancho del disco más grande
+    DISK_UNITS_H = 7
+    DISK_UNITS_MIN = 12
+    DISK_UNITS_MAX = 56
+
+    ERROR_SECONDS = 3
+
+    COLOR_PANEL = (24, 14, 52)
+    COLOR_BUTTON = (92, 58, 28)
+    COLOR_BUTTON_HOVER = (139, 90, 43)
+    COLOR_ERROR = (255, 90, 90)
+    COLOR_WIN = (255, 220, 60)
+    COLOR_LOSE = (255, 120, 100)
+
+    BTN_MENU = pygame.Rect(70, 540, 200, 52)
+    BTN_RETRY = pygame.Rect(380, 540, 200, 52)
+    BTN_MINUS = pygame.Rect(300, 270, 64, 64)
+    BTN_PLUS = pygame.Rect(596, 270, 64, 64)
+    BTN_START = pygame.Rect(380, 430, 200, 64)
+    BTN_WIN_RETRY = pygame.Rect(290, 380, 180, 56)
+    BTN_WIN_MENU = pygame.Rect(490, 380, 180, 56)
+
+    MODE_LABELS = {
+        HanoiGame.MODE_NORMAL: "NORMAL",
+        HanoiGame.MODE_PERFECT: "PERFECTO",
+        HanoiGame.MODE_TIMED: "CONTRARRELOJ",
+    }
 
     def __init__(self, num_disks=3, show_menu=True):
         pygame.init()
@@ -72,33 +89,26 @@ class HanoiGUI:
         self.font_mid = pygame.font.SysFont("consolas", 34, bold=True)
         self.font_small = pygame.font.SysFont("consolas", 20, bold=True)
 
-        # Imágenes estáticas (si falta alguna, se dibuja una versión simple)
         self.img_background = load_image("background.png")
         self.img_base = load_image("base.png")
         self.img_pole_wood = load_image("pole_wood.png")
-        self.img_pole_steel = load_image("pole_steel.png")  # torre 3 (meta)
+        self.img_pole_steel = load_image("pole_steel.png")
 
         self._disk_cache = {}
 
-        # Interacción (Punto 2.3)
         self.selected_tower = None
         self.error_message = ""
+        self.error_until = 0
 
-        # HUD (Punto 2.4)
-        self.state = "menu" if show_menu else "playing"   # "menu" | "playing"
-        self.menu_disks = num_disks                       # valor del selector
-        self.error_until = 0                              # ms en que desaparece el error
+        self.state = "menu" if show_menu else "playing"
+        self.menu_disks = num_disks
+        self.menu_mode = HanoiGame.MODE_NORMAL
 
-    # ------------------------------------------------------------------
-    # Medidas del dibujo (también las usa el Punto 2.3 para los clics)
-    # ------------------------------------------------------------------
     def tower_center_x(self, index):
-        """Coordenada x del centro de la torre `index` (0, 1 o 2)."""
         section = self.WIDTH // self.NUM_TOWERS
         return section * index + section // 2
 
     def tower_rect(self, index):
-        """Rectángulo de la columna de la torre (útil para detectar clics)."""
         section = self.WIDTH // self.NUM_TOWERS
         top = self.BASE_Y - self.POLE_HEIGHT
         bottom = self.PLATFORM_Y + self.PLATFORM_TOP_H
@@ -108,7 +118,6 @@ class HanoiGUI:
         return self.DISK_COLORS[(size - 1) % len(self.DISK_COLORS)]
 
     def disk_units(self, size):
-        """Ancho del disco en pixeles de arte: proporcional a su tamaño (siempre par)."""
         biggest = self.game.num_disks
         if biggest <= 1:
             return self.DISK_UNITS_MAX
@@ -117,7 +126,6 @@ class HanoiGUI:
         return int(round(units / 2) * 2)
 
     def disk_surface(self, size):
-        """Imagen pixel-art de un disco (se crea una vez y se reutiliza)."""
         key = (size, self.game.num_disks)
         if key not in self._disk_cache:
             self._disk_cache[key] = self._build_disk(size)
@@ -136,22 +144,19 @@ class HanoiGUI:
                 edge_x = x in (0, units - 1)
                 edge_y = y in (0, h - 1)
                 if edge_x and edge_y:
-                    continue  # esquina transparente: da el borde redondeado
+                    continue
                 if edge_x or edge_y:
                     color = self.COLOR_DISK_BORDER
                 elif y == 1:
-                    color = light      # brillo superior
+                    color = light
                 elif y >= h - 2:
-                    color = dark       # sombra inferior
+                    color = dark
                 else:
                     color = base
                 small.set_at((x, y), color)
         return pygame.transform.scale(
             small, (units * self.PIXEL, h * self.PIXEL))
 
-    # ------------------------------------------------------------------
-    # Interacción (Punto 2.3): selección de torre origen y destino con clic
-    # ------------------------------------------------------------------
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -162,14 +167,13 @@ class HanoiGUI:
                 self.handle_mouse(event.pos)
 
     def tower_at(self, pos):
-        """Devuelve el índice de la torre bajo la posición `pos`, o None."""
         for index in range(self.NUM_TOWERS):
             if self.tower_rect(index).collidepoint(pos):
                 return index
         return None
 
     def handle_click(self, pos):
-        if self.game.is_finished():
+        if self.game.is_over():
             return
         clicked = self.tower_at(pos)
         if clicked is None:
@@ -194,35 +198,21 @@ class HanoiGUI:
     def update(self):
         pass
 
-    # ------------------------------------------------------------------
-    # HUD (Punto 2.4): menú, contador, mínimo, errores y victoria
-    # ------------------------------------------------------------------
-    ERROR_SECONDS = 3
-
-    COLOR_PANEL = (24, 14, 52)
-    COLOR_BUTTON = (92, 58, 28)
-    COLOR_BUTTON_HOVER = (139, 90, 43)
-    COLOR_ERROR = (255, 90, 90)
-    COLOR_WIN = (255, 220, 60)
-
-    # Botones (rectángulos fijos, se usan para dibujar y para detectar clics)
-    BTN_MENU = pygame.Rect(70, 540, 200, 52)       # dentro de la base de madera
-    BTN_RETRY = pygame.Rect(380, 540, 200, 52)
-    BTN_MINUS = pygame.Rect(300, 300, 64, 64)      # selector del menú
-    BTN_PLUS = pygame.Rect(596, 300, 64, 64)
-    BTN_START = pygame.Rect(380, 410, 200, 64)
-    BTN_WIN_RETRY = pygame.Rect(290, 380, 180, 56)  # panel de victoria
-    BTN_WIN_MENU = pygame.Rect(490, 380, 180, 56)
-
     def set_error(self, message):
-        """Guarda un error para mostrarlo en el HUD unos segundos."""
         self.error_message = message
         self.error_until = pygame.time.get_ticks() + self.ERROR_SECONDS * 1000
 
-    def start_game(self, num_disks):
-        """Empieza una partida nueva con `num_disks` discos."""
-        self.game = HanoiGame(num_disks)
+    def change_menu_mode(self, delta):
+        modes = list(HanoiGame.MODES)
+        idx = modes.index(self.menu_mode)
+        self.menu_mode = modes[(idx + delta) % len(modes)]
+
+    def start_game(self, num_disks, mode=None):
+        if mode is None:
+            mode = self.menu_mode
+        self.game = HanoiGame(num_disks, mode=mode)
         self.menu_disks = num_disks
+        self.menu_mode = mode
         self.selected_tower = None
         self.error_message = ""
         self.state = "playing"
@@ -234,10 +224,10 @@ class HanoiGUI:
 
     def change_menu_disks(self, delta):
         value = self.menu_disks + delta
-        self.menu_disks = max(HanoiGame.MIN_DISKS, min(HanoiGame.MAX_DISKS, value))
+        self.menu_disks = max(HanoiGame.MIN_DISKS,
+                              min(HanoiGame.MAX_DISKS, value))
 
     def handle_key(self, key):
-        """Teclado global: ESC (menú/salir) y R (reintentar)."""
         if self.state == "menu":
             if key == pygame.K_ESCAPE:
                 self.running = False
@@ -246,39 +236,45 @@ class HanoiGUI:
         elif key == pygame.K_ESCAPE:
             self.go_to_menu()
         elif key == pygame.K_r:
-            self.start_game(self.game.num_disks)
+            self.start_game(self.game.num_disks, self.game.get_mode())
 
     def handle_menu_key(self, key):
         if key in (pygame.K_UP, pygame.K_RIGHT):
             self.change_menu_disks(1)
         elif key in (pygame.K_DOWN, pygame.K_LEFT):
             self.change_menu_disks(-1)
+        elif key == pygame.K_a:
+            self.change_menu_mode(-1)
+        elif key == pygame.K_d:
+            self.change_menu_mode(1)
         elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-            self.start_game(self.menu_disks)
+            self.start_game(self.menu_disks, self.menu_mode)
 
     def handle_mouse(self, pos):
-        """Reparte el clic según la pantalla: menú, victoria o juego."""
         if self.state == "menu":
             if self.BTN_MINUS.collidepoint(pos):
                 self.change_menu_disks(-1)
             elif self.BTN_PLUS.collidepoint(pos):
                 self.change_menu_disks(1)
             elif self.BTN_START.collidepoint(pos):
-                self.start_game(self.menu_disks)
-        elif self.game.is_finished():
+                self.start_game(self.menu_disks, self.menu_mode)
+            return
+
+        if self.game.is_over():
             if self.BTN_WIN_RETRY.collidepoint(pos):
-                self.start_game(self.game.num_disks)
+                self.start_game(self.game.num_disks, self.game.get_mode())
             elif self.BTN_WIN_MENU.collidepoint(pos):
                 self.go_to_menu()
-        elif self.BTN_MENU.collidepoint(pos):
+            return
+
+        if self.BTN_MENU.collidepoint(pos):
             self.go_to_menu()
         elif self.BTN_RETRY.collidepoint(pos):
-            self.start_game(self.game.num_disks)
+            self.start_game(self.game.num_disks, self.game.get_mode())
         else:
             self.handle_click(pos)
 
     def draw_text(self, text, font, color, center=None, topleft=None):
-        """Texto con contorno negro (se lee bien sobre cualquier fondo)."""
         image = font.render(text, True, color)
         outline = font.render(text, True, self.COLOR_DISK_BORDER)
         rect = image.get_rect()
@@ -300,7 +296,6 @@ class HanoiGUI:
                        center=rect.center)
 
     def draw_hud(self):
-        """Barra inferior (sobre la base de madera) y mínimo teórico arriba."""
         self.draw_button(self.BTN_MENU, "MENU")
         self.draw_button(self.BTN_RETRY, "RETRY")
         self.draw_text(f"MOVES: {self.game.get_moves()}", self.font_mid,
@@ -309,70 +304,95 @@ class HanoiGUI:
                        self.COLOR_TEXT, topleft=(24, 20))
         self.draw_text(f"DISCOS: {self.game.num_disks}", self.font_small,
                        self.COLOR_TEXT, topleft=(24, 62))
+        mode_label = self.MODE_LABELS.get(
+            self.game.get_mode(), self.game.get_mode().upper())
+        self.draw_text(f"MODO: {mode_label}", self.font_small,
+                       self.COLOR_TEXT, topleft=(24, 96))
         self.draw_text("Esc: menú | R: reintentar", self.font_small,
                        self.COLOR_TEXT, center=(self.WIDTH - 170, 34))
 
     def draw_error(self):
-        """Mensaje de error en rojo, centrado arriba; desaparece solo."""
         if not self.error_message:
             return
         if pygame.time.get_ticks() > self.error_until:
             self.error_message = ""
             return
-        text = self.font_small.render(self.error_message, True, self.COLOR_ERROR)
+        text = self.font_small.render(
+            self.error_message, True, self.COLOR_ERROR)
         box = text.get_rect(center=(self.WIDTH // 2, 112)).inflate(40, 20)
         pygame.draw.rect(self.screen, self.COLOR_PANEL, box)
         pygame.draw.rect(self.screen, self.COLOR_ERROR, box, 3)
         self.screen.blit(text, text.get_rect(center=box.center))
 
-    def draw_victory(self):
-        """Panel de victoria con movimientos, mínimo y botones."""
+    def draw_end_panel(self):
+        """Panel de victoria o derrota según el estado del juego."""
         veil = pygame.Surface((self.WIDTH, self.HEIGHT), pygame.SRCALPHA)
         veil.fill((0, 0, 0, 150))
         self.screen.blit(veil, (0, 0))
 
         panel = pygame.Rect(240, 130, 480, 330)
         pygame.draw.rect(self.screen, self.COLOR_PANEL, panel)
-        pygame.draw.rect(self.screen, self.COLOR_WIN, panel, 4)
 
         moves = self.game.get_moves()
         minimum = self.game.get_min_moves()
         cx = self.WIDTH // 2
-        self.draw_text("¡GANASTE!", self.font_big, self.COLOR_WIN, center=(cx, 190))
+
+        if self.game.is_lost():
+            border_color = self.COLOR_LOSE
+            title = "PERDISTE"
+            title_color = self.COLOR_LOSE
+            note = "Superaste el mínimo de movimientos"
+        else:
+            border_color = self.COLOR_WIN
+            title = "¡GANASTE!"
+            title_color = self.COLOR_WIN
+            if moves == minimum:
+                note = "¡Partida perfecta!"
+            else:
+                note = f"Te pasaste por {moves - minimum} movimientos"
+
+        pygame.draw.rect(self.screen, border_color, panel, 4)
+        self.draw_text(title, self.font_big, title_color, center=(cx, 190))
         self.draw_text(f"Movimientos: {moves}", self.font_mid, self.COLOR_TEXT,
                        center=(cx, 262))
         self.draw_text(f"Mínimo: {minimum}", self.font_mid, self.COLOR_TEXT,
                        center=(cx, 304))
-        if moves == minimum:
-            note = "¡Partida perfecta!"
-        else:
-            note = f"Te pasaste por {moves - minimum} movimientos"
-        self.draw_text(note, self.font_small, self.COLOR_WIN, center=(cx, 348))
+        self.draw_text(note, self.font_small, title_color, center=(cx, 348))
         self.draw_button(self.BTN_WIN_RETRY, "RETRY")
         self.draw_button(self.BTN_WIN_MENU, "MENU")
 
     def draw_menu(self):
-        """Pantalla inicial: selector del número de discos y START."""
         self.draw_background()
         self.draw_base()
         self.draw_poles()
-        panel = pygame.Rect(180, 70, 600, 440)
+
+        panel = pygame.Rect(180, 60, 600, 460)
         pygame.draw.rect(self.screen, self.COLOR_PANEL, panel)
         pygame.draw.rect(self.screen, self.COLOR_SELECTION, panel, 4)
+
         cx = self.WIDTH // 2
-        self.draw_text("TORRE DE HANÓI", self.font_big, self.COLOR_WIN, center=(cx, 130))
-        self.draw_text("Número de discos", self.font_mid, self.COLOR_TEXT, center=(cx, 240))
+        self.draw_text("TORRE DE HANÓI", self.font_big, self.COLOR_WIN,
+                       center=(cx, 110))
+
+        self.draw_text("Número de discos", self.font_mid, self.COLOR_TEXT,
+                       center=(cx, 190))
         self.draw_button(self.BTN_MINUS, "-")
         self.draw_button(self.BTN_PLUS, "+")
         self.draw_text(str(self.menu_disks), self.font_big, self.COLOR_TEXT,
-                       center=(cx, 332))
-        self.draw_button(self.BTN_START, "START")
-        self.draw_text("Flechas: cambiar | Enter: empezar | Esc: salir",
-                       self.font_small, self.COLOR_TEXT, center=(cx, 488))
+                       center=(cx, 302))
 
-    # ------------------------------------------------------------------
-    # Dibujado (de atrás hacia adelante: fondo, base, palos, discos)
-    # ------------------------------------------------------------------
+        mode_label = self.MODE_LABELS.get(
+            self.menu_mode, self.menu_mode.upper())
+        self.draw_text(f"MODO: {mode_label}", self.font, self.COLOR_TEXT,
+                       center=(cx, 360))
+        self.draw_text("A / D para cambiar modo", self.font_small, self.COLOR_TEXT,
+                       center=(cx, 390))
+
+        self.draw_button(self.BTN_START, "START")
+        self.draw_text(
+            "Flechas: discos | A/D: modo | Enter: empezar | Esc: salir",
+            self.font_small, self.COLOR_TEXT, center=(cx, 500))
+
     def draw_background(self):
         if self.img_background:
             self.screen.blit(self.img_background, (0, 0))
@@ -380,17 +400,15 @@ class HanoiGUI:
             self.screen.fill(self.COLOR_BG)
 
     def draw_base(self):
-        """Base de madera sobre la que están las 3 torres."""
         if self.img_base:
             self.screen.blit(self.img_base, (self.PLATFORM_X, self.PLATFORM_Y))
             return
-        for i in range(self.NUM_TOWERS):  # versión simple si falta la imagen
+        for i in range(self.NUM_TOWERS):
             x = self.tower_center_x(i) - 140
             pygame.draw.rect(self.screen, self.COLOR_BASE,
                              pygame.Rect(x, self.BASE_Y, 280, 24))
 
     def draw_poles(self):
-        """Los 3 palos; el de la torre 3 (meta) es de metal."""
         for i in range(self.NUM_TOWERS):
             image = self.img_pole_steel if i == self.NUM_TOWERS - 1 else self.img_pole_wood
             if image:
@@ -404,11 +422,6 @@ class HanoiGUI:
                 pygame.draw.rect(self.screen, self.COLOR_POLE, pole)
 
     def draw_disks(self):
-        """Dibuja los discos según el estado actual de HanoiGame.
-
-        get_state() devuelve 3 listas, de la base a la cima. Cada disco se
-        solapa 1 pixel de arte con el de abajo para compartir el borde negro.
-        """
         disk_h = self.DISK_UNITS_H * self.PIXEL
         step = (self.DISK_UNITS_H - 1) * self.PIXEL
         for tower_index, tower in enumerate(self.game.get_state()):
@@ -420,7 +433,6 @@ class HanoiGUI:
                 self.screen.blit(surface, (x, y))
 
     def draw_selection(self):
-        """Borde amarillo alrededor de la torre origen seleccionada."""
         if self.selected_tower is None:
             return
         rect = self.tower_rect(self.selected_tower)
@@ -437,8 +449,8 @@ class HanoiGUI:
             self.draw_selection()
             self.draw_hud()
             self.draw_error()
-            if self.game.is_finished():
-                self.draw_victory()
+            if self.game.is_over():
+                self.draw_end_panel()
         pygame.display.flip()
 
     def run(self):
@@ -449,7 +461,7 @@ class HanoiGUI:
                 self.draw()
                 self.clock.tick(self.FPS)
         finally:
-            pygame.quit()  # cierre limpio al cerrar la ventana o ante un error
+            pygame.quit()
 
 
 def main():
